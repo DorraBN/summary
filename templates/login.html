@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slide Navbar</title>
+    <link rel="stylesheet" type="text/css" href="slide navbar style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Jost:wght@500&display=swap" rel="stylesheet">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <link rel="stylesheet" href="../static/style.css">
+
+</head>
+<body>
+
+    <svg id="svgAnimation" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="50" height="50">
+        <circle cx="50" cy="50" r="30" fill="white" stroke="#573b8a" stroke-width="5" />
+    </svg>
+
+    <div id="preloader">
+        <div class="spinner"></div>
+    </div>
+
+  
+    <div class="form-container">
+        <div class="main">
+            <input type="checkbox" id="chk" aria-hidden="true">
+
+            <div class="signup">
+                <form method="POST" action="/register_user" onsubmit="submitForm(event)">
+
+                    <label for="chk" aria-hidden="true">Sign up</label>
+                    <input type="text" name="txt" placeholder="User name" required="">
+                    <input type="email" name="email" placeholder="Email" required="">
+                    <input type="number" name="broj" placeholder="Phone Number" required="">
+                    <input type="password" name="pswd" placeholder="Password" required="">
+                    <button>Sign up</button>
+                </form>
+            </div>
+
+            <div class="login">
+                <form id="loginForm">
+                    <label for="chk" aria-hidden="true">Login</label>
+                    <input type="email" name="email" placeholder="Email" required="">
+                    <input type="password" name="pswd" placeholder="Password" required="">
+                    <button><a href="index.html"></a>Login</button>
+
+                
+                    <div class="google-login mt-4">
+                        <div id="google-signin-button"></div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+       
+        window.onload = function() {
+            
+            setTimeout(function() {
+                document.getElementById("preloader").style.display = "flex"; 
+
+                setTimeout(function() {
+                    document.getElementById("preloader").style.display = "none"; 
+                    document.querySelector('.form-container').classList.add('show'); 
+                }, 1000);
+            }, 1000); 
+        };
+        document.querySelector('form').addEventListener('submit', function(e) {
+    e.preventDefault(); 
+    
+
+
+    const formData = new FormData(this); 
+    
+   
+    const data = {
+        username: formData.get('txt'),
+        email: formData.get('email'),
+        phone: formData.get('broj'),
+        password: formData.get('pswd')
+    };
+
+    fetch('/register_user', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',  
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Error submitting the form');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Server response:', data);
+        // You can display a message here or redirect the user
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+});
+function submitForm(event) {
+    event.preventDefault(); // Prevent the default form submission
+
+    const formData = new FormData(event.target);
+    
+    const data = {
+        username: formData.get('txt'),
+        email: formData.get('email'),
+        phone: formData.get('broj'),
+        password: formData.get('pswd')
+    };
+
+    fetch('/register_user', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('Server response:', data);
+        
+        if (data.success) { // Check if the registration is successful
+            document.getElementById('chk').checked = true; // Directly show the login form
+        } else {
+            alert('Registration failed. Please try again.');
+        }
+    })
+    .catch(error => console.error('Error:', error));
+}
+document.getElementById('loginForm').addEventListener('submit', function(e) {
+    e.preventDefault(); // Prevent the default form submission
+
+    const formData = new FormData(this);
+    const data = {
+        email: formData.get('email'),
+        password: formData.get('pswd')
+    };
+
+    fetch('/login', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json', 
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Redirect to index.html after successful login
+            window.location.href = 'index.html';
+        } else {
+            alert('Incorrect email or password. Please try again.');
+        }
+    })
+    .catch(error => {
+        console.error('Error during login:', error);
+        alert('An error occurred during login.');
+    });
+});
+
+
+    </script>
+    
+
+</body>
+</html>
