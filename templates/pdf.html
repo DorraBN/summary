@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Document Processor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white flex flex-col items-center min-h-screen p-6">
+
+    <nav class="w-full flex justify-between items-center py-4 px-8">
+        <h1 class="text-2xl font-bold text-yellow-400">AI Document Processor</h1>
+    
+        <div class="relative flex items-center space-x-2">
+            <button id="user-icon" class="text-2xl text-white focus:outline-none">
+                <span class="material-icons">account_circle</span>
+            </button>
+    
+    
+            {% if session.get('email') %}
+            <div class="text-white">
+                <span>{{ session.get('email') }}</span>
+            </div>
+    
+         
+            <div id="logout-menu" class="absolute left-0 mt-2 w-35 bg-gray-800 text-white rounded-md shadow-lg top-10 hidden">
+                <ul>
+                    <li>
+                        <form action="{{ url_for('logout') }}" method="POST">
+                            
+                            <button type="submit" class="flex items-center w-full px-4 py-2 text-left text-gray-400 hover:bg-gray-700">
+                                <span class="material-icons mr-2">logout</span> Logout
+                            </button>
+                        </form>
+                    </li>
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+    </nav>
+    
+    <!-- Document Upload Section -->
+    <div class="text-center mt-10">
+        <h2 class="text-4xl font-bold">Upload Your PDF or Text File</h2>
+        <p class="text-gray-400 mt-2">Extract and analyze text from your documents!</p>
+        <button id="upload-btn" class="mt-6 bg-yellow-500 px-6 py-3 text-black font-bold rounded-md text-lg hover:bg-yellow-400">
+            📂 Upload File
+        </button>
+    </div>
+
+    <input type="file" id="file-upload" class="hidden" accept=".pdf">
+    <div id="file-info" class="mt-6 hidden">
+        <p class="text-center text-gray-300">Uploaded File: <span id="file-name" class="font-bold"></span></p>
+    </div>
+    <button id="extract-btn" class="mt-4 bg-yellow-500 px-6 py-3 text-black font-bold rounded-md text-lg hover:bg-yellow-400 hidden">Extract Text</button>
+
+    <!-- Text Display for Extracted and Summarized Text -->
+    <div id="text-container" class="mt-6 hidden flex w-full space-x-8">
+        <div class="w-1/2 bg-gray-800 p-4 rounded-md text-gray-300 relative">
+            <h3 class="text-xl font-bold">Extracted Text:</h3>
+            <pre id="extracted-text" class="whitespace-pre-wrap overflow-auto max-h-64 p-2 text-sm transition-all duration-300 ease-in-out"></pre>
+            <div class="absolute top-2 right-2 bg-yellow-500 text-black font-bold rounded-full w-12 h-12 flex items-center justify-center text-lg">
+                <span id="orig-word-count">0</span>
+            </div>
+        </div>
+        <div class="w-1/2 bg-gray-800 p-4 rounded-md text-gray-300">
+            <h3 class="text-xl font-bold">Summarized Text:</h3>
+            <pre id="summarized-text" class="whitespace-pre-wrap overflow-auto max-h-64 p-2 text-sm transition-all duration-300 ease-in-out"></pre>
+            <div class="absolute  right-2 bg-yellow-500 text-black font-bold rounded-full w-12 h-12 flex items-center justify-center text-lg">
+                <span id="sum-word-count">0</span>
+            </div>
+            <div class="mt-4">
+                <button id="summarize-btn" class="bg-yellow-500 px-6 py-3 text-black font-bold rounded-md text-lg hover:bg-yellow-400">
+                    Summarize
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+
+    <p>Or</p>
+<div class="text-center mt-10">
+    <h2 class="text-4xl font-bold text-blue-600">Describe the Document</h2>
+    <p class="text-gray-400 mt-2">Enter a description or summary of the document manually:</p>
+    <textarea id="manual-description" class="mt-4 w-3/4 h-32 p-4 text-black bg-gray-100 rounded-md border-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your description or summary here..."></textarea>
+</div>
+
+<!-- Summarize and show the summarized text -->
+<div class="text-center mt-6">
+    <button id="summarize-manual-btn" class="mt-4 bg-blue-500 px-6 py-3 text-white font-bold rounded-md text-lg hover:bg-blue-400 transition duration-300">
+        Summarize Text
+    </button>
+</div>
+
+<!-- Display the summarized text -->
+<div id="summarized-manual-text-container" class="mt-6 w-3/4 mx-auto text-center hidden">
+    <h3 class="text-xl font-bold text-blue-600 mb-4">Summarized Text:</h3>
+    <div class="bg-gray-800 p-6 rounded-lg shadow-lg border-l-4 border-blue-500">
+        <pre id="summarized-manual-text" class="whitespace-pre-wrap overflow-auto max-h-64 text-gray-300 text-sm transition-all duration-300 ease-in-out"></pre>
+    </div>
+</div>
+
+
+
+
+<h3 class="text-xl font-bold mt-6 hidden" id="textclass">Classification Result:</h3>
+<div id="classification-loader" class="hidden flex justify-center items-center mt-2">
+    <div class="w-8 h-8 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
+</div>
+<div id="classification-result" class="text-sm text-gray-300 mt-2 hidden"></div>
+
+
+
+    <div id="summarization-level-container" class="mt-6 w-full max-w-xs text-center hidden">
+        <div class="text-gray-300 text-sm">Summarization Level:</div>
+        <input type="range" id="summarization-level" min="1" max="5" step="1" value="3" class="w-full mt-2">
+        <span id="summarization-level-value" class="text-gray-300">Level 3</span>
+    </div>
+
+    <div class="mt-6 w-full max-w-xs text-center">
+        <button id="save-pdf-btn" class="bg-yellow-500 px-6 py-3 text-black font-bold rounded-md text-lg hover:bg-yellow-400 hidden">
+            Save as PDF
+        </button>
+        
+        
+    </div>
+
+
+
+
+   
+    
+    <script src="../static/js/file.js"></script>
+</body>
+</html>

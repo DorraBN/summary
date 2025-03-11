@@ -144,35 +144,35 @@ function countWords(text) {
 }
 
 // Function to update classification results
-async function updateClassificationResults(text) {
-    if (text.trim() !== "") {
-        try {
-            const response = await fetch("/summarize", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ text: text })
-            });
+        async function updateClassificationResults(text) {
+            if (text.trim() !== "") {
+                try {
+                    const response = await fetch("/summarize", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({ text: text })
+                    });
 
-            const data = await response.json();
-            const category = data.classification?.category || "N/A";
-            const sentiment = data.classification?.sentiment || "N/A";
+                    const data = await response.json();
+                    const category = data.classification?.category || "N/A";
+                    const sentiment = data.classification?.sentiment || "N/A";
 
-            document.getElementById('classification-result').innerHTML = `
-                <p><strong>Category: ${category}</strong></p>
-                <p><strong>Sentiment: ${sentiment}</strong></p>
-            `;
-        } catch (error) {
-            console.error("Error in classification:", error);
-            document.getElementById('classification-result').innerHTML = "<p>Error in classification.</p>";
+                    document.getElementById('classification-result').innerHTML = `
+                        <p><strong>Category: ${category}</strong></p>
+                        <p><strong>Sentiment: ${sentiment}</strong></p>
+                    `;
+                } catch (error) {
+                    console.error("Error in classification:", error);
+                    document.getElementById('classification-result').innerHTML = "<p>Error in classification.</p>";
+                }
+            } else {
+                document.getElementById('classification-result').innerHTML = "<p>No text to classify.</p>";
+            }
         }
-    } else {
-        document.getElementById('classification-result').innerHTML = "<p>No text to classify.</p>";
-    }
-}
-    
-    
+            
+            
     // Handle the Summarize Video button click
 
 document.getElementById("upload-video-btn").addEventListener("click", function () {
@@ -308,3 +308,24 @@ document.getElementById("upload-video-btn").addEventListener("click", function (
             alert("Please enter a YouTube link or upload a video file.");
         }
     });
+
+    const left = document.querySelector('.left');
+    const right = document.querySelector('.right');
+    const container = document.querySelector('.container');
+    
+    left.addEventListener('mouseenter', () => {
+        container.classList.add('hover-left');
+    });
+    
+    left.addEventListener('mouseleave', () => {
+        container.classList.remove('hover-left');
+    });
+    
+    right.addEventListener('mouseenter', () => {
+        container.classList.add('hover-right');
+    });
+    
+    right.addEventListener('mouseleave', () => {
+        container.classList.remove('hover-right');
+    });
+    

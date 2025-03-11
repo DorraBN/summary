@@ -8,7 +8,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Jost:wght@500&display=swap" rel="stylesheet">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link rel="stylesheet" href="../static/style.css">
-
 </head>
 <body>
 
@@ -20,7 +19,6 @@
         <div class="spinner"></div>
     </div>
 
-  
     <div class="form-container">
         <div class="main">
             <input type="checkbox" id="chk" aria-hidden="true">
@@ -29,10 +27,10 @@
                 <form method="POST" action="/register_user" onsubmit="submitForm(event)">
 
                     <label for="chk" aria-hidden="true">Sign up</label>
-                    <input type="text" name="txt" placeholder="User name" required="">
-                    <input type="email" name="email" placeholder="Email" required="">
-                    <input type="number" name="broj" placeholder="Phone Number" required="">
-                    <input type="password" name="pswd" placeholder="Password" required="">
+                    <input type="text" name="txt" placeholder="User name" required=""/>
+                    <input type="email" name="email" placeholder="Email" required=""/>
+                    <input type="number" name="broj" placeholder="Phone Number" required=""/>
+                    <input type="password" name="pswd" placeholder="Password" required=""/>
                     <button>Sign up</button>
                 </form>
             </div>
@@ -40,11 +38,13 @@
             <div class="login">
                 <form id="loginForm">
                     <label for="chk" aria-hidden="true">Login</label>
-                    <input type="email" name="email" placeholder="Email" required="">
-                    <input type="password" name="pswd" placeholder="Password" required="">
-                    <button><a href="index.html"></a>Login</button>
+                    <input type="email" name="email" placeholder="Email" required=""/>
+                    <input type="password" name="pswd" placeholder="Password" required=""/>
+                    <button>Login</button>
 
-                
+                    <div id="progress-container" style="display:none;">
+                        <div class="progress-circle"></div>
+                    </div>
                     <div class="google-login mt-4">
                         <div id="google-signin-button"></div>
                     </div>
@@ -54,119 +54,113 @@
     </div>
 
     <script>
-       
         window.onload = function() {
-            
             setTimeout(function() {
                 document.getElementById("preloader").style.display = "flex"; 
-
                 setTimeout(function() {
                     document.getElementById("preloader").style.display = "none"; 
                     document.querySelector('.form-container').classList.add('show'); 
                 }, 1000);
             }, 1000); 
         };
-        document.querySelector('form').addEventListener('submit', function(e) {
-    e.preventDefault(); 
-    
 
+        function submitForm(event) {
+            event.preventDefault(); // Prevent the default form submission
 
-    const formData = new FormData(this); 
-    
-   
-    const data = {
-        username: formData.get('txt'),
-        email: formData.get('email'),
-        phone: formData.get('broj'),
-        password: formData.get('pswd')
-    };
+            const formData = new FormData(event.target);
+            const data = {
+                username: formData.get('txt'),
+                email: formData.get('email'),
+                phone: formData.get('broj'),
+                password: formData.get('pswd')
+            };
 
-    fetch('/register_user', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',  
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Error submitting the form');
+            fetch('/register_user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Server response:', data);
+                
+                if (data.success) { 
+                    document.getElementById('chk').checked = true; 
+                } else {
+                    alert('Registration failed. Please try again.');
+                }
+            })
+            .catch(error => console.error('Error:', error));
         }
-        return response.json();
-    })
-    .then(data => {
-        console.log('Server response:', data);
-        // You can display a message here or redirect the user
-    })
-    .catch(error => {
-        console.error('Error:', error);
-    });
-});
-function submitForm(event) {
-    event.preventDefault(); // Prevent the default form submission
 
-    const formData = new FormData(event.target);
-    
-    const data = {
-        username: formData.get('txt'),
-        email: formData.get('email'),
-        phone: formData.get('broj'),
-        password: formData.get('pswd')
-    };
+        // Login form submission
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault(); 
 
-    fetch('/register_user', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log('Server response:', data);
-        
-        if (data.success) { // Check if the registration is successful
-            document.getElementById('chk').checked = true; // Directly show the login form
-        } else {
-            alert('Registration failed. Please try again.');
+            const formData = new FormData(this);
+            const data = {
+                email: formData.get('email'),
+                password: formData.get('pswd')
+            };
+
+            showProgress(); // Show the progress circle when submitting
+
+            fetch('/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json', 
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = 'index.html'; 
+                } else {
+                    alert('Incorrect email or password. Please try again.');
+                    document.getElementById('progress-container').style.display = 'none'; // Hide progress circle if login fails
+                }
+            })
+            .catch(error => {
+                console.error('Error during login:', error);
+                alert('An error occurred during login.');
+                document.getElementById('progress-container').style.display = 'none'; 
+            });
+        });
+
+        // Show progress circle when the form is submitted
+        function showProgress() {
+            document.getElementById('progress-container').style.display = 'block';
         }
-    })
-    .catch(error => console.error('Error:', error));
-}
-document.getElementById('loginForm').addEventListener('submit', function(e) {
-    e.preventDefault(); // Prevent the default form submission
-
-    const formData = new FormData(this);
-    const data = {
-        email: formData.get('email'),
-        password: formData.get('pswd')
-    };
-
-    fetch('/login', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json', 
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Redirect to index.html after successful login
-            window.location.href = 'index.html';
-        } else {
-            alert('Incorrect email or password. Please try again.');
-        }
-    })
-    .catch(error => {
-        console.error('Error during login:', error);
-        alert('An error occurred during login.');
-    });
-});
-
-
     </script>
-    
 
 </body>
 </html>
+
+<style>
+    #progress-container {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .progress-circle {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #3498db;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>

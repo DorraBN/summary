@@ -158,14 +158,4 @@ button:hover {
     color: #000;
 }
 
-/* Form container to control display timing */
-.form-container {
-    display: none;
-    opacity: 0;
-    transition: opacity 1s ease-in-out;
-}
 
-.form-container.show {
-    display: block;
-    opacity: 1;
-}

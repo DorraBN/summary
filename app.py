@@ -1,7 +1,9 @@
-from flask import Flask, redirect, render_template, request, jsonify, send_file, url_for
+from flask import Flask, redirect, render_template, request, jsonify, send_file, url_for,session
 from werkzeug.utils import secure_filename
 import os
 import PyPDF2
+from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
+import torch
 from fpdf import FPDF
 from transformers import pipeline
 from youtube_transcript_api import YouTubeTranscriptApi
@@ -15,6 +17,7 @@ import moviepy.editor as mp
 import whisper
 from moviepy.editor import VideoFileClip
 from transformers import BartTokenizer, pipeline
+from functools import wraps
 # Initialize Flask app
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
@@ -25,6 +28,17 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root@localhost/text'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
+
+
+app.secret_key = os.urandom(24)
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('home'))  # Redirect to the login page if not logged in
+        return f(*args, **kwargs)
+    return decorated_function
 
 #count words
 def count_words(text):
@@ -42,7 +56,8 @@ class User(db.Model):
 with app.app_context():
     db.create_all()
 summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
-
+tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
+model = DistilBertForSequenceClassification.from_pretrained("distilbert-base-uncased")
 # Function to extract text from PDF
 import pdfplumber
 
@@ -89,7 +104,40 @@ def save_text_as_pdf(text, filename="extracted_text.pdf"):
     pdf.output(pdf_path)
     return pdf_path
 tokenizer = BartTokenizer.from_pretrained("facebook/bart-large-cnn")
-# Summarize text with T5-small
+
+def clean_transcript(transcript):
+  
+    return re.sub(r'\d+:\d{2}:\d{2}.\d{3}', '', transcript)
+
+def split_text_into_chunks(text, max_length=1024):
+    chunks = []
+    sentences = text.split(". ")
+    current_chunk = ""
+
+    for sentence in sentences:
+        if len(current_chunk + ". " + sentence) < max_length:
+            current_chunk += ". " + sentence
+        else:
+            chunks.append(current_chunk.strip())
+            current_chunk = sentence  
+    if current_chunk: 
+        chunks.append(current_chunk.strip())
+    
+    return chunks
+
+def summarize_text_with_chunks(text):
+   
+    chunks = split_text_into_chunks(text)
+
+    summaries = []
+    for chunk in chunks:
+        
+        summary = summarizer(chunk, do_sample=False)
+        summaries.append(summary[0]['summary_text'])
+
+   
+    full_summary = " ".join(summaries)
+    return full_summary
 def summarize_text_with_t5(text):
      # Tokenize the input text
     inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=1024)
@@ -111,12 +159,50 @@ def summarize_text_with_t5(text):
     except Exception as e:
         return f"Error during summarization: {str(e)}"
 
+
+@app.route('/summarize_description', methods=['POST'])
+def summarize_description():
+    data = request.get_json()
+    text = data.get('text', '')
+    
+    if not text:
+        return jsonify({"error": "No text provided for summarization"}), 400
+    
+    # Summarize the manually entered text
+    summarized_text = summarize_text_with_t5(text)
+
+    return jsonify({"summarized_text": summarized_text})
+@app.route('/summarize', methods=['POST'])
+def summarize():
+    text = request.json.get('text', '')
+    if not text:
+        return jsonify({'error': 'No text provided for summarization'}), 400
+    
+    
+    summarized_text = summarize_text_with_chunks(text)
+    
+  
+    cleaned_summarized_text = remove_unwanted_text(summarized_text)
+    
+    
+    category, sentiment = classify_text(text)
+
+   
+    response = {
+        'original_text': text,
+        'summarized_text': cleaned_summarized_text, 
+        'classification': {
+            'category': category,
+            'sentiment': sentiment
+        }
+    }
+
+    return jsonify(response)
 def is_valid_youtube_url(url):
     youtube_regex = r'(https?://(?:www\.)?youtube\.com/watch\?v=([^&]+))'
     return re.match(youtube_regex, url)
 
 
-# Summarize video and classify text
 @app.route('/summarize_video', methods=['POST'])
 def summarize_video():
     video_url = request.json.get('url', '')
@@ -132,26 +218,26 @@ def summarize_video():
         video_id = video_id.split('&')[0]
     
     try:
+        
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
         transcript_text = " ".join([entry['text'] for entry in transcript])
         
-        # Debugging: Check the extracted transcript text
-        print("Extracted Transcript:", transcript_text)
-        
-        # Summarize the transcript text
-        summarized_text = summarize_text_with_t5(transcript_text)
-        
-        # Calculate word counts
-        original_word_count = count_words(transcript_text)
-        summarized_word_count = count_words(summarized_text)
-        
-        # Perform classification on the transcript text
-        category, sentiment = classify_text(transcript_text)
+     
+        cleaned_transcript_text = remove_unwanted_text(transcript_text)
 
-        # Return extracted, summarized text, and classification results
+       
+        summarized_text = summarize_text_with_chunks(cleaned_transcript_text)
+        cleaned_summarized_text = remove_unwanted_text(summarized_text)
+        
+        original_word_count = count_words(transcript_text)
+        summarized_word_count = count_words(cleaned_summarized_text)
+        
+        # Classify the text
+        category, sentiment = classify_text(cleaned_transcript_text)
+
         return jsonify({
-            'extracted_text': transcript_text,
-            'summarized_text': summarized_text,
+            'extracted_text': cleaned_transcript_text,  
+            'summarized_text': cleaned_summarized_text,  
             'original_word_count': original_word_count,
             'summarized_word_count': summarized_word_count,
             'classification': {
@@ -161,7 +247,6 @@ def summarize_video():
         })
     except Exception as e:
         return jsonify({'error': f'Error processing video transcript: {str(e)}'}), 400
-
 
 #upload file
 @app.route('/upload', methods=['POST'])
@@ -178,28 +263,8 @@ def upload():
     
     return jsonify({'extracted_text': text})
 
-#summarize file
-@app.route('/summarize', methods=['POST'])
-@app.route('/summarize', methods=['POST'])
-def summarize():
-    text = request.json.get('text', '')
-    if not text:
-        return jsonify({'error': 'No text provided for summarization'}), 400
-    
-    summarized_text = summarize_text_with_t5(text)
-    category, sentiment = classify_text(text)
-    
-    # Renvoi de la réponse avec les bons champs
-    response = {
-        'original_text': text,
-        'summarized_text': summarized_text,
-        'classification': {
-            'category': category,
-            'sentiment': sentiment
-        }
-    }
 
-    return jsonify(response)
+
 
 
 
@@ -234,37 +299,38 @@ def insert_user(username, email, phone, password):
 
     conn.commit()
     conn.close()
-
 @app.route('/register_user', methods=['POST'])
 def register_user():
-    try:
-        data = request.get_json() 
+    data = request.get_json()
 
-        if not all(k in data for k in ("username", "email", "phone", "password")):
-            return jsonify({"error": "Missing data"}), 400
-        
-        existing_user = User.query.filter((User.email == data['email']) | (User.phone == data['phone'])).first()
-        if existing_user:
-            return jsonify({"error": "User already exists with this email or phone number"}), 400
-        
-        new_user = User(
-            username=data['username'],
-            email=data['email'],
-            phone=data['phone'],
-            password=data['password'] 
-        )
-        
-        db.session.add(new_user)
-        db.session.commit()
+    username = data.get('username')
+    email = data.get('email')
+    phone = data.get('phone')
+    password = data.get('password')
 
-        return jsonify({"success": True}), 201  
+    # Validate input fields
+    if not username or not email or not phone or not password:
+        return jsonify({"error": "All fields are required"}), 400
 
-    except Exception as e:
-        print("Server error:", str(e))
-        return jsonify({"error": "Internal server error"}), 500
+    # Check if the email already exists
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user:
+        return jsonify({"error": "Email already in use"}), 400
+
+    # Hash the password before saving (use a secure method like bcrypt or scrypt)
+    hashed_password = generate_password_hash(password)
+
+    # Create the new user
+    new_user = User(username=username, email=email, phone=phone, password=hashed_password)
+    db.session.add(new_user)
+    db.session.commit()
+
+    return jsonify({"success": True}), 201
+
 
 
 #login
+
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
@@ -275,76 +341,52 @@ def login():
     if not email or not password:
         return jsonify({"error": "Email or password missing"}), 400
 
+    # Query the user by email
     user = User.query.filter_by(email=email).first()
 
-    if not user or user.password != password: 
+    if not user:
         return jsonify({"error": "Invalid email or password"}), 400
-    return jsonify({"success": True})
 
-#index
-@app.route('/index.html')  
+    # Verify the password
+    if not check_password_hash(user.password, password):  # Use the hashed password
+        return jsonify({"error": "Invalid email or password"}), 400
+
+    # Store user information in the session
+    session['user_id'] = user.id
+    session['username'] = user.username
+    session['email'] = user.email
+
+    return jsonify({"success": True}), 200
+
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    session.clear()  
+    return redirect(url_for('home'))
+
+@app.route('/index.html')
+@login_required
 def index():
     return render_template('index.html')
+
+@app.route('/video.html')
+@login_required
+def video():
+    return render_template('video.html')
+
+@app.route('/pdf.html')
+@login_required
+def pdf():
+    return render_template('pdf.html')
 
 #home
 @app.route('/')
 def home():
+    if 'user_id' in session:
+        return redirect(url_for('index')) 
     return render_template('login.html')
 
 
-
-#classification 
-classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
-
-candidate_labels = [
-    "Tech", "Health", "Finance", "Politics", "Sports", "Education", 
-    "Entertainment", "Science", "Life", "Spirit", "Business", "Economy", 
-    "Culture", "Travel", "Environment", "Art", "Lifestyle", "Food", "Music", 
-    "Fashion", "History", "Philosophy", "Law", "Gaming", "Social Media", 
-    "Psychology", "Human Rights", "Religion", "Security", "Transportation", 
-    "Real Estate", "Marketing", "Agriculture", "Retail", "Startup", 
-    "Non-profit", "Management", "Innovation", "Artificial Intelligence", 
-    "Blockchain", "Climate Change", "Space Exploration", "Astronomy", 
-    "Geopolitics", "Languages", "Technology Trends", "Virtual Reality", 
-    "Medicine", "Genetics", "Nanotechnology", "Cybersecurity", "Cryptocurrency", 
-    "Workplace", "Public Policy", "Global Health", "Sustainability", 
-    "Telecommunications", "Manufacturing", "Industry 4.0", "Automation", 
-    "E-commerce", "Crowdsourcing", "Digital Transformation", "Biotechnology", 
-    "Quantum Computing", "Smart Cities", "Renewable Energy", "Artificial Life",
-    "Design", "Philanthropy", "Public Relations", "Corporate Social Responsibility", 
-    "Media", "Journalism", "Books", "Movies", "Theater", "Television", 
-    "Podcasts", "Comics", "Photography", "Video Games", "Events"
-]
-
-
-def classify_text(text):
-   
-    category_result = classifier(text, candidate_labels=candidate_labels)
-    
-    
-    print("Category result:", category_result)  
-
-    if 'labels' in category_result and len(category_result['labels']) > 0:
-        category = category_result['labels'][0]  
-    else:
-        category = "N/A"  
-    
-    
-    sentiment_analyzer = pipeline("sentiment-analysis")
-    sentiment_result = sentiment_analyzer(text)
-    
-   
-    print("Sentiment result:", sentiment_result)  
-    
- 
-    if isinstance(sentiment_result, list) and len(sentiment_result) > 0:
-        sentiment_label = sentiment_result[0]['label']
-    else:
-        sentiment_label = 'Unknown'  
-    
-    print(f"Category: {category}, Sentiment: {sentiment_label}")  
-
-    return category, sentiment_label
 
 # Route to upload video
 @app.route('/upload_video', methods=['POST'])
@@ -377,7 +419,7 @@ def summarize_uploaded_video():
         # Extract audio and transcribe
         audio_path = extract_audio_from_video(video_path)
         transcribed_text = transcribe_audio(audio_path)
-        summarized_text = summarize_text_with_t5(transcribed_text)
+        summarized_text = summarize_text_with_chunks(transcribed_text)
         original_word_count = count_words(transcribed_text)
         summarized_word_count = count_words(summarized_text)
         category, sentiment = classify_text(summarized_text)
@@ -438,26 +480,64 @@ candidate_labels = [
 
 
 def classify_text(text):
+  
+    sentences = text.split('. ')
     
-    MAX_TOKENS = 512
-    text = text[:MAX_TOKENS]
+    sentiments = []
+    
+    for sentence in sentences:
+        sentiment = classify_sentiment(sentence)
+        sentiments.append(sentiment)
+
+    sentiment_result = check_for_contradiction(sentiments)
+   
+    category_result = classifier(text, candidate_labels=candidate_labels)
+    category = category_result.get("labels", ["N/A"])[0]
+
+    return category, sentiment_result
+
+def remove_unwanted_text(text):
+    unwanted_text = "CNN.com will feature iReporter photos in a weekly Travel Snapshots gallery. Please submit your best shots of the U.S. for next week. Visit CNN.com/Travel next Wednesday for a new gallery of snapshots. Please share your best photos of the United States with CNN iReport."
+    
+    cleaned_text = text.replace(unwanted_text, "")
+    
+    return cleaned_text
 
 
-    try:
-        category_result = classifier(text, candidate_labels=candidate_labels)
-        category = category_result.get("labels", ["N/A"])[0]  
-    except Exception as e:
-        print(f"Erreur lors de la classification : {e}")
-        category = "N/A"
 
-    try:
-        sentiment_result = sentiment_analyzer(text)
-        sentiment_label = sentiment_result[0].get("label", "Unknown") if sentiment_result else "Unknown"
-    except Exception as e:
-        print(f"Erreur lors de l'analyse du sentiment : {e}")
-        sentiment_label = "Unknown"
 
-    return category, sentiment_label
+
+
+sentiment_analyzer = pipeline("sentiment-analysis")
+
+def classify_sentiment(text):
+    sentiment_result = sentiment_analyzer(text)
+
+    if sentiment_result[0]['label'] == 'POSITIVE':
+        return "Positive"
+    elif sentiment_result[0]['label'] == 'NEGATIVE':
+        return "Negative"
+    else:
+        return "Neutral"
+
+def check_for_contradiction(sentiments):
+   
+    positive_count = sentiments.count("Positive")
+    negative_count = sentiments.count("Negative")
+
+    if positive_count > 0 and negative_count > 0:
+        return "Mixed (Positive + Negative)"
+    elif positive_count > 0:
+        return "Positive"
+    elif negative_count > 0:
+        return "Negative"
+    else:
+        return "Neutral"
+
+
+
+
+
 
 
 
