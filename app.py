@@ -9,11 +9,14 @@ from transformers import pipeline
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api.formatters import JSONFormatter
 import re
+from concurrent.futures import ThreadPoolExecutor
+from transformers import pipeline, BartForConditionalGeneration, BartTokenizer
 import sqlite3
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash
 from werkzeug.security import check_password_hash
 import moviepy.editor as mp
+from concurrent.futures import ProcessPoolExecutor
 import whisper
 from moviepy.editor import VideoFileClip
 from transformers import BartTokenizer, pipeline
@@ -27,6 +30,9 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root@localhost/text'
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+
+
+
 db = SQLAlchemy(app)
 
 
@@ -36,7 +42,7 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
-            return redirect(url_for('home'))  # Redirect to the login page if not logged in
+            return redirect(url_for('home'))  
         return f(*args, **kwargs)
     return decorated_function
 
@@ -55,12 +61,18 @@ class User(db.Model):
 
 with app.app_context():
     db.create_all()
-summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
-tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
-model = DistilBertForSequenceClassification.from_pretrained("distilbert-base-uncased")
-# Function to extract text from PDF
-import pdfplumber
+model = BartForConditionalGeneration.from_pretrained("facebook/bart-large-cnn")
+tokenizer = BartTokenizer.from_pretrained("facebook/bart-large-cnn")
 
+summarizer = pipeline("summarization", model=model, tokenizer=tokenizer)
+from accelerate import Accelerator
+accelerator = Accelerator()
+summarizer = accelerator.prepare(summarizer)
+model = model.to(accelerator.device)
+
+import pdfplumber
+def split_large_text(text, max_length=1024):
+    return [text[i:i+max_length] for i in range(0, len(text), max_length)]
 def extract_text_from_pdf(filepath):
     try:
         extension = os.path.splitext(filepath)[1].lower()
@@ -110,70 +122,32 @@ def clean_transcript(transcript):
     return re.sub(r'\d+:\d{2}:\d{2}.\d{3}', '', transcript)
 
 def split_text_into_chunks(text, max_length=1024):
+    paragraphs = text.split("\n\n")
     chunks = []
-    sentences = text.split(". ")
     current_chunk = ""
-
-    for sentence in sentences:
-        if len(current_chunk + ". " + sentence) < max_length:
-            current_chunk += ". " + sentence
+    for paragraph in paragraphs:
+        if len(current_chunk + "\n" + paragraph) > max_length:
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+            current_chunk = paragraph
         else:
-            chunks.append(current_chunk.strip())
-            current_chunk = sentence  
-    if current_chunk: 
+            current_chunk += "\n" + paragraph
+    if current_chunk:
         chunks.append(current_chunk.strip())
-    
     return chunks
 
+def summarize_chunk(chunk):
+    return summarizer(chunk, max_length=1024)[0]['summary_text']
+
 def summarize_text_with_chunks(text):
-   
     chunks = split_text_into_chunks(text)
+    with ThreadPoolExecutor() as executor:
+        summaries = list(executor.map(summarize_chunk, chunks))
+    return " ".join(summaries)
 
-    summaries = []
-    for chunk in chunks:
-        
-        summary = summarizer(chunk, do_sample=False)
-        summaries.append(summary[0]['summary_text'])
-
-   
-    full_summary = " ".join(summaries)
-    return full_summary
-def summarize_text_with_t5(text):
-     # Tokenize the input text
-    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=1024)
-
-    # Extract the tokenized text from the inputs
-    input_ids = inputs["input_ids"]
-
-    # Ensure text length does not exceed model's max tokens (1024 for BART)
-    if len(input_ids[0]) > 1024:
-        input_ids = input_ids[:, :1024]  # Truncate to the first 1024 tokens
-
-    # Decode the input text back for summarization
-    text_for_summary = tokenizer.decode(input_ids[0], skip_special_tokens=True)
-
-    try:
-        # Summarize the text
-        summary = summarizer(text_for_summary, max_length=200, min_length=1, do_sample=False)
-        return summary[0]['summary_text']
-    except Exception as e:
-        return f"Error during summarization: {str(e)}"
-
-
-@app.route('/summarize_description', methods=['POST'])
-def summarize_description():
-    data = request.get_json()
-    text = data.get('text', '')
-    
-    if not text:
-        return jsonify({"error": "No text provided for summarization"}), 400
-    
-    # Summarize the manually entered text
-    summarized_text = summarize_text_with_t5(text)
-
-    return jsonify({"summarized_text": summarized_text})
 @app.route('/summarize', methods=['POST'])
 def summarize():
+
     text = request.json.get('text', '')
     if not text:
         return jsonify({'error': 'No text provided for summarization'}), 400
@@ -198,10 +172,60 @@ def summarize():
     }
 
     return jsonify(response)
+def summarize_text_with_t5(text):
+   
+    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=200)
+
+  
+    input_ids = inputs["input_ids"]
+
+   
+    if len(input_ids[0]) > 200:
+        input_ids = input_ids[:, :200] 
+
+  
+    text_for_summary = tokenizer.decode(input_ids[0], skip_special_tokens=True)
+
+    try:
+       
+        summary = summarizer(text_for_summary, max_length=100, min_length=1, do_sample=False)
+        return summary[0]['summary_text']
+    except Exception as e:
+        return f"Error during summarization: {str(e)}"
+
+
+@app.route('/summarize_description', methods=['POST'])
+def summarize_description():
+   
+    text = request.json.get('text', '')
+
+    if not text:
+        return jsonify({'error': 'No text provided for summarization'}), 400
+    
+
+    summarized_text = summarize_text_with_chunks(text)
+    
+
+    cleaned_summarized_text = remove_unwanted_text(summarized_text)
+    
+
+    category, sentiment = classify_text(text)
+
+    response = {
+        'original_text': text,
+        'summarized_text': cleaned_summarized_text, 
+        'classification': {
+            'category': category,
+            'sentiment': sentiment
+        }
+    }
+
+ 
+    return jsonify(response)
+
 def is_valid_youtube_url(url):
     youtube_regex = r'(https?://(?:www\.)?youtube\.com/watch\?v=([^&]+))'
     return re.match(youtube_regex, url)
-
 
 @app.route('/summarize_video', methods=['POST'])
 def summarize_video():
@@ -348,7 +372,7 @@ def login():
         return jsonify({"error": "Invalid email or password"}), 400
 
     # Verify the password
-    if not check_password_hash(user.password, password):  # Use the hashed password
+    if not check_password_hash(user.password, password):  
         return jsonify({"error": "Invalid email or password"}), 400
 
     # Store user information in the session
@@ -455,7 +479,8 @@ def transcribe_audio(audio_path):
     return result["text"]
 
 #classification 
-classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+classifier = pipeline("zero-shot-classification", model="distilbert-base-uncased")
+
 sentiment_analyzer = pipeline("sentiment-analysis")
 
 candidate_labels = [

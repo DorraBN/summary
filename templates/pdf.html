@@ -9,6 +9,11 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
+<!-- Loader global pour l'extraction -->
+<div id="global-loader" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex justify-center items-center z-50">
+    <div class="w-16 h-16 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
+</div>
+
 <body class="bg-gray-900 text-white flex flex-col items-center min-h-screen p-6">
 
     <nav class="w-full flex justify-between items-center py-4 px-8">
@@ -79,7 +84,25 @@
             </div>
         </div>
     </div>
+    <h3 class="text-xl font-bold mt-6 hidden" id="textclass">Classification Result:</h3>
 
+    <div id="classification-result" class="text-sm text-gray-300 mt-2 hidden"></div>
+    
+    
+    
+        <div id="summarization-level-container" class="mt-6 w-full max-w-xs text-center hidden">
+            <div class="text-gray-300 text-sm">Summarization Level:</div>
+            <input type="range" id="summarization-level" min="1" max="5" step="1" value="3" class="w-full mt-2">
+            <span id="summarization-level-value" class="text-gray-300">Level 3</span>
+        </div>
+    
+        <div class="mt-6 w-full max-w-xs text-center">
+            <button id="save-pdf-btn" class="bg-yellow-500 px-6 py-3 text-black font-bold rounded-md text-lg hover:bg-yellow-400 hidden">
+                Save as PDF
+            </button>
+            
+            
+        </div>
 
 
     <p>Or</p>
@@ -107,11 +130,9 @@
 
 
 
-<h3 class="text-xl font-bold mt-6 hidden" id="textclass">Classification Result:</h3>
-<div id="classification-loader" class="hidden flex justify-center items-center mt-2">
-    <div class="w-8 h-8 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
-</div>
-<div id="classification-result" class="text-sm text-gray-300 mt-2 hidden"></div>
+<h3 class="text-xl font-bold mt-6 hidden" id="textclass1">Classification Result:</h3>
+
+<div id="classification-result1" class="text-sm text-gray-300 mt-2 hidden"></div>
 
 
 
@@ -122,7 +143,7 @@
     </div>
 
     <div class="mt-6 w-full max-w-xs text-center">
-        <button id="save-pdf-btn" class="bg-yellow-500 px-6 py-3 text-black font-bold rounded-md text-lg hover:bg-yellow-400 hidden">
+        <button id="save-pdf-btn1" class="bg-yellow-500 px-6 py-3 text-black font-bold rounded-md text-lg hover:bg-yellow-400 hidden">
             Save as PDF
         </button>
         

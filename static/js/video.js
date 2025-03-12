@@ -1,112 +1,129 @@
-document.getElementById("summarize-video-btn").addEventListener("click", function () {
-    const youtubeLink = document.getElementById("youtube-link").value;
-    const videoFile = document.getElementById("video-upload").files[0];
-
-    document.getElementById("video-summary").classList.remove("hidden");
-    document.getElementById("video-extracted-text").textContent = "Extracting transcript...";
-    document.getElementById("video-summarized-text").textContent = "Summarizing video...";
-
+document.addEventListener("DOMContentLoaded", function () {
+    document.getElementById("summarize-video-btn").addEventListener("click", function () {
+        const youtubeLink = document.getElementById("youtube-link").value;
+        const videoFile = document.getElementById("video-upload").files[0];
   
-    document.getElementById("save-pdf-btn1").classList.add("hidden");
-    document.getElementById("classification-result").classList.add("hidden");
-    document.getElementById("classification-loader").classList.remove("hidden");
-   
-    if (youtubeLink) {
+        document.getElementById("video-summary").classList.add("hidden");
+        document.getElementById("video-extracted-text").textContent = "";
+        document.getElementById("video-summarized-text").textContent = "";
+
+        document.getElementById("save-pdf-btn1").classList.add("hidden");
+        document.getElementById("classification-result").classList.add("hidden");
+        document.getElementById("classification-loader").classList.remove("hidden");
+
+      
+        if (!youtubeLink && !videoFile) {
+            alert("Please enter a YouTube link or upload a video file.");
+            document.getElementById("classification-loader").classList.add("hidden");
+            return; 
+        }
+
        
-        fetch("/summarize_video", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ url: youtubeLink })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                alert(data.error);
-                return;
-            }
+        document.getElementById("video-summary").classList.remove("hidden");
 
-            if (data.extracted_text && data.summarized_text) {
-                document.getElementById("video-extracted-text").textContent = data.extracted_text;
-                document.getElementById("video-summarized-text").textContent = data.summarized_text;
-                document.getElementById("original-word-count").textContent = data.original_word_count;
-                document.getElementById("summarized-word-count").textContent = data.summarized_word_count;
-
-               
-                updateClassificationResults1(data.summarized_text);
-
-               
-                document.getElementById("save-pdf-btn1").classList.remove("hidden");
-                document.getElementById("textclass").classList.remove("hidden");
-               
-                document.getElementById("classification-loader").classList.add("hidden");
-                document.getElementById("classification-result").classList.remove("hidden");
-            } else {
-                alert("There was an issue with the video data.");
-            }
-        })
-        .catch(error => {
-            console.error("Error summarizing video:", error);
-        });
-    } else if (videoFile) {
-        
-        const formData = new FormData();
-        formData.append("file", videoFile);  
-
-        fetch("/upload_video", {
-            method: "POST",
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                alert(data.error);
-                return;
-            }
-
-            uploadedFilePath = data.file_path;
-
-           
-            fetch("/summarize_uploaded_video", {
+     
+        if (youtubeLink) {
+            fetch("/summarize_video", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ file_path: uploadedFilePath })
+                body: JSON.stringify({ url: youtubeLink })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
                     alert(data.error);
+                    document.getElementById("classification-loader").classList.add("hidden");
                     return;
                 }
 
-                document.getElementById("video-extracted-text").textContent = data.extracted_text;
-                document.getElementById("video-summarized-text").textContent = data.summarized_text;
-                document.getElementById("original-word-count").textContent = data.original_word_count;
-                document.getElementById("summarized-word-count").textContent = data.summarized_word_count;
+                if (data.extracted_text && data.summarized_text) {
+                    document.getElementById("video-extracted-text").textContent = data.extracted_text;
+                    document.getElementById("video-summarized-text").textContent = data.summarized_text;
+                    document.getElementById("original-word-count").textContent = data.original_word_count;
+                    document.getElementById("summarized-word-count").textContent = data.summarized_word_count;
 
-                updateClassificationResults1(data.summarized_text);
-
-               
-                document.getElementById("save-pdf-btn1").classList.remove("hidden");
-
-                
-                document.getElementById("classification-loader").classList.add("hidden");
-                document.getElementById("classification-result").classList.remove("hidden");
+                    updateClassificationResults1(data.summarized_text);
+                    document.getElementById("save-pdf-btn1").classList.remove("hidden");
+                    document.getElementById("classification-loader").classList.add("hidden");
+                    document.getElementById("classification-result").classList.remove("hidden");
+                } else {
+                    alert("There was an issue with the video data.");
+                }
             })
             .catch(error => {
-                console.error("Error summarizing uploaded video:", error);
+                console.error("Error summarizing video:", error);
             });
-        })
-        .catch(error => {
-            console.error("Error uploading video:", error);
-        });
-    } else {
-        alert("Please enter a YouTube link or upload a video file.");
-    }
+        }
+        
+        else if (videoFile) {
+            const formData = new FormData();
+            formData.append("file", videoFile);
+
+            fetch("/upload_video", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                    document.getElementById("classification-loader").classList.add("hidden");
+                    return;
+                }
+
+                uploadedFilePath = data.file_path;
+
+                fetch("/summarize_uploaded_video", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ file_path: uploadedFilePath })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                        document.getElementById("classification-loader").classList.add("hidden");
+                        return;
+                    }
+
+                    document.getElementById("video-extracted-text").textContent = data.extracted_text;
+                    document.getElementById("video-summarized-text").textContent = data.summarized_text;
+                    document.getElementById("original-word-count").textContent = data.original_word_count;
+                    document.getElementById("summarized-word-count").textContent = data.summarized_word_count;
+
+                    updateClassificationResults1(data.summarized_text);
+                    document.getElementById("save-pdf-btn1").classList.remove("hidden");
+                    document.getElementById("classification-loader").classList.add("hidden");
+                    document.getElementById("classification-result").classList.remove("hidden");
+                })
+                .catch(error => {
+                    console.error("Error summarizing uploaded video:", error);
+                });
+            })
+            .catch(error => {
+                console.error("Error uploading video:", error);
+            });
+        }
+    });
+
+  
+    document.getElementById("upload-video-btn").addEventListener("click", function () {
+        document.getElementById("video-upload").click();
+    });
+
+    document.getElementById("video-upload").addEventListener("change", function (event) {
+        const videoFile = event.target.files[0];
+        if (videoFile) {
+            document.getElementById("file-info-video").classList.remove("hidden");
+            document.getElementById("video-file-name").textContent = videoFile.name;
+        }
+    });
 });
+
 
 document.getElementById("upload-video-btn").addEventListener("click", function () {
     document.getElementById("video-upload").click(); 
