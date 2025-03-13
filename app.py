@@ -4,6 +4,8 @@ import os
 import PyPDF2
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
 import torch
+from accelerate import Accelerator
+import pdfplumber
 from fpdf import FPDF
 from transformers import pipeline
 from youtube_transcript_api import YouTubeTranscriptApi
@@ -30,11 +32,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root@localhost/text'
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-
-
-
 db = SQLAlchemy(app)
-
 
 app.secret_key = os.urandom(24)
 
@@ -58,19 +56,16 @@ class User(db.Model):
     phone = db.Column(db.String(20), nullable=False)
     password = db.Column(db.String(255), nullable=False) 
 
-
 with app.app_context():
     db.create_all()
 model = BartForConditionalGeneration.from_pretrained("facebook/bart-large-cnn")
 tokenizer = BartTokenizer.from_pretrained("facebook/bart-large-cnn")
 
 summarizer = pipeline("summarization", model=model, tokenizer=tokenizer)
-from accelerate import Accelerator
 accelerator = Accelerator()
 summarizer = accelerator.prepare(summarizer)
 model = model.to(accelerator.device)
 
-import pdfplumber
 def split_large_text(text, max_length=1024):
     return [text[i:i+max_length] for i in range(0, len(text), max_length)]
 def extract_text_from_pdf(filepath):
@@ -79,22 +74,15 @@ def extract_text_from_pdf(filepath):
         if extension == ".txt":
             with open(filepath, "r", encoding="utf-8") as file:
                 return file.read()
-
-       
         elif extension == ".pdf":
             text = ""
-
             try:
-                
                 with open(filepath, "rb") as file:
                     reader = PyPDF2.PdfReader(file)
                     text = "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
-                
-                
                 if not text.strip():
                     with pdfplumber.open(filepath) as pdf:
                         text = "\n".join([page.extract_text() for page in pdf.pages if page.extract_text()])
-                
                 return text if text.strip() else "Error: No text extracted from PDF."
             
             except Exception as e:
@@ -118,7 +106,6 @@ def save_text_as_pdf(text, filename="extracted_text.pdf"):
 tokenizer = BartTokenizer.from_pretrained("facebook/bart-large-cnn")
 
 def clean_transcript(transcript):
-  
     return re.sub(r'\d+:\d{2}:\d{2}.\d{3}', '', transcript)
 
 def split_text_into_chunks(text, max_length=1024):
@@ -147,21 +134,13 @@ def summarize_text_with_chunks(text):
 
 @app.route('/summarize', methods=['POST'])
 def summarize():
-
     text = request.json.get('text', '')
     if not text:
         return jsonify({'error': 'No text provided for summarization'}), 400
-    
-    
-    summarized_text = summarize_text_with_chunks(text)
-    
-  
-    cleaned_summarized_text = remove_unwanted_text(summarized_text)
-    
-    
-    category, sentiment = classify_text(text)
 
-   
+    summarized_text = summarize_text_with_chunks(text)
+    cleaned_summarized_text = remove_unwanted_text(summarized_text)
+    category, sentiment = classify_text(text)
     response = {
         'original_text': text,
         'summarized_text': cleaned_summarized_text, 
@@ -173,21 +152,15 @@ def summarize():
 
     return jsonify(response)
 def summarize_text_with_t5(text):
-   
     inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=200)
-
-  
     input_ids = inputs["input_ids"]
 
-   
     if len(input_ids[0]) > 200:
         input_ids = input_ids[:, :200] 
 
-  
     text_for_summary = tokenizer.decode(input_ids[0], skip_special_tokens=True)
 
     try:
-       
         summary = summarizer(text_for_summary, max_length=100, min_length=1, do_sample=False)
         return summary[0]['summary_text']
     except Exception as e:
@@ -196,19 +169,12 @@ def summarize_text_with_t5(text):
 
 @app.route('/summarize_description', methods=['POST'])
 def summarize_description():
-   
     text = request.json.get('text', '')
-
     if not text:
         return jsonify({'error': 'No text provided for summarization'}), 400
-    
 
     summarized_text = summarize_text_with_chunks(text)
-    
-
     cleaned_summarized_text = remove_unwanted_text(summarized_text)
-    
-
     category, sentiment = classify_text(text)
 
     response = {
@@ -242,14 +208,11 @@ def summarize_video():
         video_id = video_id.split('&')[0]
     
     try:
-        
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
         transcript_text = " ".join([entry['text'] for entry in transcript])
-        
-     
+
         cleaned_transcript_text = remove_unwanted_text(transcript_text)
 
-       
         summarized_text = summarize_text_with_chunks(cleaned_transcript_text)
         cleaned_summarized_text = remove_unwanted_text(summarized_text)
         
@@ -286,14 +249,6 @@ def upload():
     text = extract_text_from_pdf(filepath)
     
     return jsonify({'extracted_text': text})
-
-
-
-
-
-
-
-
 
 #download pdf
 @app.route('/download_pdf', methods=['POST'])
@@ -351,14 +306,10 @@ def register_user():
 
     return jsonify({"success": True}), 201
 
-
-
 #login
-
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
-
     email = data.get('email')
     password = data.get('password')
 
@@ -381,7 +332,6 @@ def login():
     session['email'] = user.email
 
     return jsonify({"success": True}), 200
-
 
 @app.route('/logout', methods=['POST'])
 def logout():
@@ -409,7 +359,6 @@ def home():
     if 'user_id' in session:
         return redirect(url_for('index')) 
     return render_template('login.html')
-
 
 
 # Route to upload video
@@ -459,8 +408,6 @@ def summarize_uploaded_video():
     except Exception as e:
         return jsonify({'error': f'Error summarizing video: {str(e)}'}), 500
 
-
-
 def extract_audio_from_video(video_path):
     # Open the video file
     video = VideoFileClip(video_path)
@@ -480,7 +427,6 @@ def transcribe_audio(audio_path):
 
 #classification 
 classifier = pipeline("zero-shot-classification", model="distilbert-base-uncased")
-
 sentiment_analyzer = pipeline("sentiment-analysis")
 
 candidate_labels = [
@@ -505,9 +451,7 @@ candidate_labels = [
 
 
 def classify_text(text):
-  
     sentences = text.split('. ')
-    
     sentiments = []
     
     for sentence in sentences:
@@ -515,7 +459,6 @@ def classify_text(text):
         sentiments.append(sentiment)
 
     sentiment_result = check_for_contradiction(sentiments)
-   
     category_result = classifier(text, candidate_labels=candidate_labels)
     category = category_result.get("labels", ["N/A"])[0]
 
@@ -523,17 +466,11 @@ def classify_text(text):
 
 def remove_unwanted_text(text):
     unwanted_text = "CNN.com will feature iReporter photos in a weekly Travel Snapshots gallery. Please submit your best shots of the U.S. for next week. Visit CNN.com/Travel next Wednesday for a new gallery of snapshots. Please share your best photos of the United States with CNN iReport."
-    
     cleaned_text = text.replace(unwanted_text, "")
     
     return cleaned_text
 
-
-
-
-
-
-sentiment_analyzer = pipeline("sentiment-analysis")
+# sentiment_analyzer = pipeline("sentiment-analysis")
 
 def classify_sentiment(text):
     sentiment_result = sentiment_analyzer(text)
@@ -546,7 +483,6 @@ def classify_sentiment(text):
         return "Neutral"
 
 def check_for_contradiction(sentiments):
-   
     positive_count = sentiments.count("Positive")
     negative_count = sentiments.count("Negative")
 
@@ -558,13 +494,6 @@ def check_for_contradiction(sentiments):
         return "Negative"
     else:
         return "Neutral"
-
-
-
-
-
-
-
 
 #main
 if __name__ == '__main__':

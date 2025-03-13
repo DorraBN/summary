@@ -1,5 +1,5 @@
- /* Preloader Styles */
- #preloader {
+/* Preloader Styles */
+#preloader {
     position: fixed;
     top: 0;
     left: 0;
@@ -14,7 +14,7 @@
 
 .spinner {
     border: 4px solid #f3f3f3;
-    border-top: 4px solid #573b8a;
+    border-top: 4px solid #EAB308;
     border-radius: 50%;
     width: 50px;
     height: 50px;
@@ -22,8 +22,12 @@
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 #svgAnimation {
@@ -56,7 +60,7 @@ body {
     align-items: center;
     min-height: 100vh;
     font-family: 'Jost', sans-serif;
-    background: #1f2937;
+    background: #111827;
     overflow: hidden;
 }
 
@@ -111,7 +115,7 @@ button {
     justify-content: center;
     display: block;
     color: #fff;
-    background: #573b8a;
+    background: #EAB308;
     font-size: 1em;
     font-weight: bold;
     margin-top: 30px;
@@ -123,7 +127,7 @@ button {
 }
 
 button:hover {
-    background: #6d44b8;
+    background: #EAB308;
 }
 
 .login {
@@ -135,7 +139,7 @@ button:hover {
 }
 
 .login label {
-    color: #573b8a;
+    color: #EAB308;
     transform: scale(.6);
 }
 

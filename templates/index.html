@@ -2,24 +2,36 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <link rel="stylesheet" href="../static/home.css">
-    <title>Home</title>
+    <title>Summarize AI - Video & File Summarization</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='home.css') }}">
 </head>
 <body>
-    <div class="container">
-        <div class="split left" >
-            <h1>Video Summarizing</h1>
-            <a href="video.html" class="btn">Try Now</a>
+<div class="container">
+    <header>
+        <div class="logo">SummarizeAI</div>
+    </header>
+
+    <div class="split-container">
+        <div class="split left">
+            <div class="content">
+                <h1>Video Summarizing</h1>
+                <p class="description">Easily summarize videos by pasting a YouTube link or uploading a video file. Our tool will generate a concise and accurate summary, saving you time and effort.</p>
+                <a href="video.html" class="btn">Try Now</a>
+            </div>
         </div>
+
         <div class="split right">
-            <h1>File Summarizing</h1>
-            <a href="pdf.html" class="btn">Try Now</a>
+            <div class="content">
+                <h1>File Summarizing</h1>
+                <p class="description">Upload PDF, TXT, or enter text manually to get a clear and structured summary. Perfect for quickly understanding lengthy documents or extracting key points from text.</p>
+                <a href="pdf.html" class="btn">Try Now</a>
+            </div>
         </div>
     </div>
-   
+</div>
+
+<script src="{{ url_for('static', filename='js/home.js') }}"></script>
 </body>
 </html>
-<script src="../static/js/home.js"></script>

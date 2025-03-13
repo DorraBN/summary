@@ -3,158 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Document Processor</title>
+    <title>SummarizeAI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+        }
+        .accent-border {
+            border-left: 4px solid #f59e0b;
+        }
+    </style>
 </head>
-<!-- Loader global pour l'extraction -->
-<div id="global-loader" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex justify-center items-center z-50">
+<body class="bg-gray-900 text-white flex flex-col items-center min-h-screen">
+<div id="global-loader" class="hidden fixed inset-0 bg-gray-900 bg-opacity-70 flex justify-center items-center z-50">
     <div class="w-16 h-16 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
 </div>
 
-<body class="bg-gray-900 text-white flex flex-col items-center min-h-screen p-6">
+<nav class="w-full flex justify-between items-center py-4 px-8 border-b border-gray-800">
+    <a href="index.html"><h1 class="text-2xl font-bold text-yellow-400">SummarizeAI</h1></a>
 
-    <nav class="w-full flex justify-between items-center py-4 px-8">
-        <h1 class="text-2xl font-bold text-yellow-400">AI Document Processor</h1>
-    
-        <div class="relative flex items-center space-x-2">
-            <button id="user-icon" class="text-2xl text-white focus:outline-none">
-                <span class="material-icons">account_circle</span>
-            </button>
-    
-    
-            {% if session.get('email') %}
+    <div class="relative flex items-center space-x-2">
+        <button id="user-icon" class="text-2xl text-white focus:outline-none hover:text-yellow-400 transition-colors">
+            <span class="material-icons">account_circle</span>
+        </button>
+
+        {% if session.get('email') %}
             <div class="text-white">
                 <span>{{ session.get('email') }}</span>
             </div>
-    
-         
-            <div id="logout-menu" class="absolute left-0 mt-2 w-35 bg-gray-800 text-white rounded-md shadow-lg top-10 hidden">
+
+            <div id="logout-menu" class="absolute left-0 mt-2 w-35 bg-gray-800 text-white rounded-md shadow-lg top-10 hidden z-10">
                 <ul>
                     <li>
                         <form action="{{ url_for('logout') }}" method="POST">
-                            
-                            <button type="submit" class="flex items-center w-full px-4 py-2 text-left text-gray-400 hover:bg-gray-700">
+                            <button type="submit" class="flex items-center w-full px-4 py-2 text-left text-gray-400 hover:bg-gray-700 hover:text-white transition-colors">
                                 <span class="material-icons mr-2">logout</span> Logout
                             </button>
                         </form>
                     </li>
                 </ul>
             </div>
-            {% endif %}
+        {% endif %}
+    </div>
+</nav>
+
+<main class="w-full max-w-6xl px-6 py-8">
+    <div class="gradient-bg rounded-xl p-8 text-center mb-12 shadow-lg">
+        <h2 class="text-4xl font-bold text-yellow-400 mb-3">Upload Your PDF or Text File</h2>
+        <p class="text-gray-300 mb-6">Extract and analyze text from your documents!</p>
+
+        <button id="upload-btn" class="bg-yellow-500 px-6 py-3 text-black font-bold rounded-md text-lg hover:bg-yellow-400 transition-colors flex items-center mx-auto">
+            <span class="material-icons mr-2">upload_file</span> Upload File
+        </button>
+
+        <input type="file" id="file-upload" class="hidden" accept=".pdf">
+
+        <div id="file-info" class="mt-6 hidden">
+            <p class="text-center text-gray-300">Uploaded File: <span id="file-name" class="font-bold text-yellow-400"></span></p>
         </div>
-    </nav>
-    
-    <!-- Document Upload Section -->
-    <div class="text-center mt-10">
-        <h2 class="text-4xl font-bold">Upload Your PDF or Text File</h2>
-        <p class="text-gray-400 mt-2">Extract and analyze text from your documents!</p>
-        <button id="upload-btn" class="mt-6 bg-yellow-500 px-6 py-3 text-black font-bold rounded-md text-lg hover:bg-yellow-400">
-            📂 Upload File
+
+        <button id="extract-btn" class="mt-4 bg-yellow-500 px-6 py-3 text-black font-bold rounded-md text-lg hover:bg-yellow-400 hidden transition-colors flex items-center mx-auto">
+            <span class="material-icons mr-2">text_snippet</span> Extract Text
         </button>
     </div>
 
-    <input type="file" id="file-upload" class="hidden" accept=".pdf">
-    <div id="file-info" class="mt-6 hidden">
-        <p class="text-center text-gray-300">Uploaded File: <span id="file-name" class="font-bold"></span></p>
-    </div>
-    <button id="extract-btn" class="mt-4 bg-yellow-500 px-6 py-3 text-black font-bold rounded-md text-lg hover:bg-yellow-400 hidden">Extract Text</button>
-
-    <!-- Text Display for Extracted and Summarized Text -->
-    <div id="text-container" class="mt-6 hidden flex w-full space-x-8">
-        <div class="w-1/2 bg-gray-800 p-4 rounded-md text-gray-300 relative">
-            <h3 class="text-xl font-bold">Extracted Text:</h3>
-            <pre id="extracted-text" class="whitespace-pre-wrap overflow-auto max-h-64 p-2 text-sm transition-all duration-300 ease-in-out"></pre>
-            <div class="absolute top-2 right-2 bg-yellow-500 text-black font-bold rounded-full w-12 h-12 flex items-center justify-center text-lg">
+    <div id="text-container" class="mt-6 hidden flex flex-col md:flex-row w-full md:space-x-8 space-y-8 md:space-y-0">
+        <div class="w-full md:w-1/2 gradient-bg p-6 rounded-xl text-gray-300 relative shadow-lg">
+            <h3 class="text-xl font-bold text-yellow-400 mb-4">Extracted Text:</h3>
+            <pre id="extracted-text" class="whitespace-pre-wrap overflow-auto max-h-64 p-4 bg-gray-900 bg-opacity-50 rounded-lg text-sm transition-all duration-300 ease-in-out"></pre>
+            <div class="absolute top-4 right-4 bg-yellow-500 text-black font-bold rounded-full w-12 h-12 flex items-center justify-center text-lg shadow-md">
                 <span id="orig-word-count">0</span>
             </div>
         </div>
-        <div class="w-1/2 bg-gray-800 p-4 rounded-md text-gray-300">
-            <h3 class="text-xl font-bold">Summarized Text:</h3>
-            <pre id="summarized-text" class="whitespace-pre-wrap overflow-auto max-h-64 p-2 text-sm transition-all duration-300 ease-in-out"></pre>
-            <div class="absolute  right-2 bg-yellow-500 text-black font-bold rounded-full w-12 h-12 flex items-center justify-center text-lg">
+
+        <div class="w-full md:w-1/2 gradient-bg p-6 rounded-xl text-gray-300 relative shadow-lg">
+            <h3 class="text-xl font-bold text-yellow-400 mb-4">Summarized Text:</h3>
+            <pre id="summarized-text" class="whitespace-pre-wrap overflow-auto max-h-64 p-4 bg-gray-900 bg-opacity-50 rounded-lg text-sm transition-all duration-300 ease-in-out"></pre>
+            <div class="absolute top-4 right-4 bg-yellow-500 text-black font-bold rounded-full w-12 h-12 flex items-center justify-center text-lg shadow-md">
                 <span id="sum-word-count">0</span>
             </div>
-            <div class="mt-4">
-                <button id="summarize-btn" class="bg-yellow-500 px-6 py-3 text-black font-bold rounded-md text-lg hover:bg-yellow-400">
-                    Summarize
+            <div class="mt-6 flex justify-center">
+                <button id="summarize-btn" class="bg-yellow-500 px-6 py-3 text-black font-bold rounded-md text-lg hover:bg-yellow-400 flex items-center transition-colors">
+                    <span class="material-icons mr-2">summarize</span> Summarize
                 </button>
             </div>
         </div>
     </div>
-    <h3 class="text-xl font-bold mt-6 hidden" id="textclass">Classification Result:</h3>
 
-    <div id="classification-result" class="text-sm text-gray-300 mt-2 hidden"></div>
-    
-    
-    
-        <div id="summarization-level-container" class="mt-6 w-full max-w-xs text-center hidden">
-            <div class="text-gray-300 text-sm">Summarization Level:</div>
-            <input type="range" id="summarization-level" min="1" max="5" step="1" value="3" class="w-full mt-2">
-            <span id="summarization-level-value" class="text-gray-300">Level 3</span>
+    <h3 class="text-xl font-bold mt-8 hidden text-yellow-400" id="textclass">Classification Result:</h3>
+    <div id="classification-result" class="text-sm text-gray-300 mt-2 p-4 gradient-bg rounded-lg shadow-lg hidden accent-border"></div>
+
+    <div id="summarization-level-container" class="mt-8 w-full max-w-xs mx-auto text-center hidden">
+        <div class="text-gray-300 mb-2">Summarization Level:</div>
+        <div class="flex items-center">
+            <span class="text-xs text-gray-400">Brief</span>
+            <input type="range" id="summarization-level" min="1" max="5" step="1" value="3" class="w-full mx-2 accent-yellow-400">
+            <span class="text-xs text-gray-400">Detailed</span>
         </div>
-    
-        <div class="mt-6 w-full max-w-xs text-center">
-            <button id="save-pdf-btn" class="bg-yellow-500 px-6 py-3 text-black font-bold rounded-md text-lg hover:bg-yellow-400 hidden">
-                Save as PDF
-            </button>
-            
-            
-        </div>
-
-
-    <p>Or</p>
-<div class="text-center mt-10">
-    <h2 class="text-4xl font-bold text-blue-600">Describe the Document</h2>
-    <p class="text-gray-400 mt-2">Enter a description or summary of the document manually:</p>
-    <textarea id="manual-description" class="mt-4 w-3/4 h-32 p-4 text-black bg-gray-100 rounded-md border-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your description or summary here..."></textarea>
-</div>
-
-<!-- Summarize and show the summarized text -->
-<div class="text-center mt-6">
-    <button id="summarize-manual-btn" class="mt-4 bg-blue-500 px-6 py-3 text-white font-bold rounded-md text-lg hover:bg-blue-400 transition duration-300">
-        Summarize Text
-    </button>
-</div>
-
-<!-- Display the summarized text -->
-<div id="summarized-manual-text-container" class="mt-6 w-3/4 mx-auto text-center hidden">
-    <h3 class="text-xl font-bold text-blue-600 mb-4">Summarized Text:</h3>
-    <div class="bg-gray-800 p-6 rounded-lg shadow-lg border-l-4 border-blue-500">
-        <pre id="summarized-manual-text" class="whitespace-pre-wrap overflow-auto max-h-64 text-gray-300 text-sm transition-all duration-300 ease-in-out"></pre>
-    </div>
-</div>
-
-
-
-
-<h3 class="text-xl font-bold mt-6 hidden" id="textclass1">Classification Result:</h3>
-
-<div id="classification-result1" class="text-sm text-gray-300 mt-2 hidden"></div>
-
-
-
-    <div id="summarization-level-container" class="mt-6 w-full max-w-xs text-center hidden">
-        <div class="text-gray-300 text-sm">Summarization Level:</div>
-        <input type="range" id="summarization-level" min="1" max="5" step="1" value="3" class="w-full mt-2">
-        <span id="summarization-level-value" class="text-gray-300">Level 3</span>
+        <span id="summarization-level-value" class="text-yellow-400 font-medium">Level 3</span>
     </div>
 
-    <div class="mt-6 w-full max-w-xs text-center">
-        <button id="save-pdf-btn1" class="bg-yellow-500 px-6 py-3 text-black font-bold rounded-md text-lg hover:bg-yellow-400 hidden">
-            Save as PDF
+    <div class="mt-6 w-full max-w-xs mx-auto text-center">
+        <button id="save-pdf-btn" class="bg-yellow-500 px-6 py-3 text-black font-bold rounded-md text-lg hover:bg-yellow-400 hidden flex items-center justify-center mx-auto transition-colors">
+            <span class="material-icons mr-2">download</span> Save as PDF
         </button>
-        
-        
     </div>
 
+    <div class="flex items-center justify-center my-10">
+        <div class="border-t border-gray-700 flex-grow"></div>
+        <span class="px-4 text-gray-400 text-lg font-medium">OR</span>
+        <div class="border-t border-gray-700 flex-grow"></div>
+    </div>
 
+    <div class="gradient-bg rounded-xl p-8 text-center mb-12 shadow-lg">
+        <h2 class="text-4xl font-bold text-blue-500 mb-3">Describe the Document</h2>
+        <p class="text-gray-300 mb-6">Enter a description or summary of the document manually:</p>
+        <textarea id="manual-description" class="w-full md:w-3/4 h-32 p-4 text-black bg-gray-100 rounded-md border-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 mx-auto" placeholder="Enter your description or summary here..."></textarea>
 
+        <button id="summarize-manual-btn" class="mt-6 bg-blue-500 px-6 py-3 text-white font-bold rounded-md text-lg hover:bg-blue-400 transition-colors flex items-center mx-auto">
+            <span class="material-icons mr-2">auto_awesome</span> Summarize Text
+        </button>
+    </div>
 
-   
-    
-    <script src="../static/js/file.js"></script>
+    <!-- Display the summarized manual text -->
+    <div id="summarized-manual-text-container" class="mt-8 w-full md:w-3/4 mx-auto text-center hidden">
+        <h3 class="text-xl font-bold text-blue-500 mb-4">Summarized Text:</h3>
+        <div class="gradient-bg p-6 rounded-xl shadow-lg border-l-4 border-blue-500">
+            <pre id="summarized-manual-text" class="whitespace-pre-wrap overflow-auto max-h-64 text-gray-300 text-sm transition-all duration-300 ease-in-out p-4 bg-gray-900 bg-opacity-50 rounded-lg"></pre>
+        </div>
+    </div>
+
+    <h3 class="text-xl font-bold mt-8 hidden text-blue-500" id="textclass1">Classification Result:</h3>
+    <div id="classification-result1" class="text-sm text-gray-300 mt-2 p-4 gradient-bg rounded-lg shadow-lg hidden border-l-4 border-blue-500"></div>
+
+    <div class="mt-8 w-full max-w-xs mx-auto text-center">
+        <button id="save-pdf-btn1" class="bg-blue-500 px-6 py-3 text-white font-bold rounded-md text-lg hover:bg-blue-400 hidden flex items-center justify-center mx-auto transition-colors">
+            <span class="material-icons mr-2">download</span> Save as PDF
+        </button>
+    </div>
+</main>
+
+<footer class="w-full py-6 text-center text-gray-500 text-sm border-t border-gray-800 mt-12">
+    <p>© 2025 SummarizeAI. All rights reserved.</p>
+</footer>
+
+<script src="../static/js/file.js"></script>
 </body>
 </html>
