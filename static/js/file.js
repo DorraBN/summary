@@ -347,3 +347,7 @@ document.getElementById("save-pdf-btn1").addEventListener("click", function () {
         console.error("Error downloading PDF:", error);
     });
 });
+document.getElementById('user-icon').addEventListener('click', function() {
+    const logoutMenu = document.getElementById('logout-menu');
+    logoutMenu.classList.toggle('hidden');
+});
