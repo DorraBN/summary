@@ -426,7 +426,7 @@ def transcribe_audio(audio_path):
     return result["text"]
 
 #classification 
-classifier = pipeline("zero-shot-classification", model="distilbert-base-uncased")
+classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli") 
 sentiment_analyzer = pipeline("sentiment-analysis")
 
 candidate_labels = [
